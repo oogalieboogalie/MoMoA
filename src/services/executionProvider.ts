@@ -22,6 +22,8 @@ import { E2BExecutionProvider } from './executionProviders/e2BExecutionProvider.
 import { CloudWorkstationsExecutionProvider } from './executionProviders/cloudWorkstationsExecutionProvider.js';
 import { SshExecutionProvider } from './executionProviders/sshExecutionProvider.js';
 import { CLOUD_RUN_CONFIG } from '../cloudrun-config.js';
+import { JulesExecutionProvider } from './executionProviders/julesExecutionProvider.js';
+import { executeTool } from '../tools/multiAgentToolRegistry.js';
 
 export const LARGE_FILE_LIMIT_KB = 100;
 export const MAX_CONTEXT_FILE_SIZE_BYTES = 100 * 1024 * 1024;
@@ -106,6 +108,9 @@ export function getExecutionProvider(context: MultiAgentToolContext | undefined)
       return new CloudShellExecutionProvider(
         context.secrets.gcpProjectId, 
         context.secrets.googleAccessToken);
+
+    case (ToolExecutionEnvironmentType.Jules):
+      return new JulesExecutionProvider(context, executeTool);
     
     case (ToolExecutionEnvironmentType.Inverse_SSH_Tunnel):
       if (!context.secrets.sshTunnelUrl)
