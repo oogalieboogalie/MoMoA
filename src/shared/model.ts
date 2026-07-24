@@ -59,6 +59,7 @@ export interface InitialRequestData {
   maxDurationMs?: number;
   gracePeriodMs?: number;
   toolExecutionEnvironment?: string;
+  distributedAgent?: string;
 }
 
 export interface UserSecrets {
@@ -73,6 +74,11 @@ export interface UserSecrets {
   cloudWorkstationName: string;
   sshTunnelUrl: string;
   remoteDesktopKey: string;
+  cloudRunProxyUrl: string;
+  cloudRunToken: string;
+  localDockerImage: string;
+  dockerMounts: string[];
+  dockerNetwork: string;
 }
 
 /**
