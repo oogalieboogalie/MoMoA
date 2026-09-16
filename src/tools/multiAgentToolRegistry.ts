@@ -32,6 +32,8 @@ import { factFinderTool } from './implementations/FactFinderTool.js';
 import { julesTool } from './implementations/julesTool.js';
 import { stitchTool } from './implementations/stitchTool.js';
 import { screenCaptureTool } from './implementations/screenCaptureTool.js';
+import { agentTool } from './implementations/agentTool.js';
+import { CodeRunnerTool } from './implementations/codeRunnerTool.js';
 
 // The state is a module-level constant, making it private to this module.
 const tools = new Map<string, MultiAgentTool>();
@@ -132,4 +134,6 @@ registerTool(factFinderTool);
 registerTool(julesTool);
 registerTool(stitchTool);
 registerTool(screenCaptureTool);
+registerTool(agentTool);
+registerTool(CodeRunnerTool);
 // Future tools will be registered here.

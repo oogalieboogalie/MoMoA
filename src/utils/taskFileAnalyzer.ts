@@ -154,7 +154,7 @@ export async function analyzeRelevantFilesForTask(
     fileMap: fileMap,
     binaryFileMap: binaryFileMap,
     editedFilesSet: new Set<string>(), // Not relevant for read-only analysis
-    originalFilesSet: new Set<string>([...fileMap.keys(),...binaryFileMap.keys()]),
+    originalFilesSet: new Set<string>([...fileMap.keys(), ...binaryFileMap.keys()]),
     originalFileMap: new Map(fileMap), // Use a copy
     originalBinaryFileMap: new Map(binaryFileMap),
     sendMessage: sendMessage,
@@ -170,7 +170,8 @@ export async function analyzeRelevantFilesForTask(
     julesBranchName: null,
     saveFiles: false,
     secrets: {} as any,
-    toolExecutionEnvironment: ""
+    toolExecutionEnvironment: "",
+    distributedAgent: ""
   };
   
   const toolPrefix = await getAssetString('tool-prefix');

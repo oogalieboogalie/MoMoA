@@ -42,21 +42,26 @@ interface WebSocketMessage {
  */
 interface InitialRequestData {
   prompt: string;
-  image: string;
-  imageMimeType: string;
+  image?: string;
+  imageMimeType?: string;
   llmName: string;
+  githubUrl?: string;
   maxTurns?: number;
   assumptions?: string;
-  files?: { name: string, content: string }[]; // This will be populated by chunks
+  files?: { name: string; content: string }[]; // This will be populated by chunks
   apiKey?: string;
-  saveFiles?: boolean; 
-  mode?: ServerMode;
+  saveFiles?: boolean;
+  mode?: ServerMode; //'orchestrator' | 'analyzer';
+  projectId?: string;
   projectSpecification?: string;
   environmentInstructions?: string;
   notWorkingBuild?: boolean;
   weaveId?: string;
   maxDurationMs?: number;
   gracePeriodMs?: number;
+  toolExecutionEnvironment?: string;
+  distributedAgent?: string;
+  secrets?: Partial<UserSecrets>;
 }
 
 /**
@@ -288,8 +293,12 @@ async function handleInitialRequest(clientUUID: string, requestData: InitialRequ
       environmentInstructions,
       notWorkingBuild,
       maxDurationMs,
-      gracePeriodMs
+      gracePeriodMs,
+      toolExecutionEnvironment,
+      distributedAgent,
+      secrets: clientSecrets
     } = requestData;
+  
 
     const projectSpecification = "";
 
@@ -344,18 +353,24 @@ async function handleInitialRequest(clientUUID: string, requestData: InitialRequ
       });
     }
 
+    // Merge client secrets with server environment variables
     const secrets: UserSecrets = {
-      geminiApiKey: process.env.GEMINI_API_KEY || '',
-      julesApiKey: process.env.JULES_API_KEY || '',
-      githubToken: process.env.GITHUB_TOKEN || '',
-      stitchApiKey: process.env.STITCH_API_KEY || '',
-      e2BApiKey: process.env.E2B_API_KEY || '',
-      githubScratchPadRepo: process.env.GITHUB_SCRATCHPAD_REPO || '',
-      gcpProjectId: process.env.GCP_PROJECT_ID || '',
-      googleAccessToken: process.env.GOOLGE_ACCESS_TOKEN || '',
-      cloudWorkstationName: process.env.CLOUD_WORKSTATION_NAME || '',
-      sshTunnelUrl: process.env.SSH_TUNNEL_URL || "",
-      remoteDesktopKey: process.env.REMOTE_DESKTOP_AGENT_KEY || '',
+      geminiApiKey: clientSecrets?.geminiApiKey || process.env.GEMINI_API_KEY || '',
+      julesApiKey: clientSecrets?.julesApiKey || process.env.JULES_API_KEY || '',
+      githubToken: clientSecrets?.githubToken || process.env.GITHUB_TOKEN || '',
+      stitchApiKey: clientSecrets?.stitchApiKey || process.env.STITCH_API_KEY || '',
+      e2BApiKey: clientSecrets?.e2BApiKey || process.env.E2B_API_KEY || '',
+      githubScratchPadRepo: clientSecrets?.githubScratchPadRepo || process.env.GITHUB_SCRATCHPAD_REPO || '',
+      gcpProjectId: clientSecrets?.gcpProjectId || process.env.GCP_PROJECT_ID || '',
+      googleAccessToken: clientSecrets?.googleAccessToken || process.env.GOOGLE_ACCESS_TOKEN || '',
+      cloudWorkstationName: clientSecrets?.cloudWorkstationName || process.env.CLOUD_WORKSTATION_NAME || '',
+      sshTunnelUrl: clientSecrets?.sshTunnelUrl || process.env.SSH_TUNNEL_URL || "",
+      remoteDesktopKey: clientSecrets?.remoteDesktopKey || process.env.REMOTE_DESKTOP_AGENT_KEY || '',
+      cloudRunProxyUrl: clientSecrets?.cloudRunProxyUrl || process.env.CLOUD_RUN_PROXY_URL || '',
+      cloudRunToken: clientSecrets?.cloudRunToken || process.env.CLOUD_RUN_TOKEN || '',
+      localDockerImage: clientSecrets?.localDockerImage || process.env.LOCAL_DOCKER_IMAGE || '',
+      dockerMounts: clientSecrets?.dockerMounts || process.env.DOCKER_MOUNTS?.split(',') || [], 
+      dockerNetwork: clientSecrets?.dockerNetwork || process.env.DOCKER_NETWORK || '',
     };
 
     const orchestrator = new Orchestrator(
@@ -378,7 +393,9 @@ async function handleInitialRequest(clientUUID: string, requestData: InitialRequ
       controller.signal,
       mode,
       maxDurationMs,
-      gracePeriodMs
+      gracePeriodMs,
+      toolExecutionEnvironment,
+      distributedAgent
     );
 
     orchestratorInstances.set(clientUUID, orchestrator);

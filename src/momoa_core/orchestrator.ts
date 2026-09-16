@@ -35,7 +35,7 @@ import { analyzeAndSetTaskRelevantFiles, analyzeFiles, getTaskRelevantFileDescri
 import { removeBacktickFences, replaceContentBetweenMarkers } from '../utils/markdownUtils.js';
 import { enrichPrompt } from '../utils/promptEnrichment.js';
 import { Overseer } from './overseer.js';
-import { MultiAgentToolContext, ToolConfirmationOutcome, GuidanceType, InfrastructureContext, ToolExecutionEnvironmentType } from './types.js';
+import { MultiAgentToolContext, ToolConfirmationOutcome, GuidanceType, InfrastructureContext, ToolExecutionEnvironmentType, DistributedAgentType } from './types.js';
 import { WorkPhase } from './workPhase.js';
 import { LlmBlockedError } from '../shared/errors.js';
 import { generateSessionTitle } from '../utils/sessionTitleGenerator.js';
@@ -82,6 +82,7 @@ export class Orchestrator {
   private gracePeriodMs?: number;
   private hasWarnedTimeLow: boolean = false;
   private toolExecutionEnvironment: string;
+  private distributedAgent: string;
 
   /**
    * Initializes a new instance of the Orchestrator.
@@ -119,6 +120,7 @@ export class Orchestrator {
     maxDurationMs?: number,
     gracePeriodMs?: number,
     toolExecutionEnvironment?: string,
+    distributedAgent?: string,
   ) {
     this.initialPrompt = initialPrompt;
     this.initialImage = initialImage;
@@ -157,6 +159,7 @@ export class Orchestrator {
     this.gracePeriodMs = gracePeriodMs ?? undefined;
 
     this.toolExecutionEnvironment = toolExecutionEnvironment ?? ToolExecutionEnvironmentType.Local;
+    this.distributedAgent = distributedAgent ?? DistributedAgentType.GeminiCLI;
 
     this.toolContext = {
       fileMap: this.fileMap,
@@ -185,6 +188,7 @@ export class Orchestrator {
       environmentInstructions: this.environmentInstructions,
       notWorkingBuild: this.notWorkingBuild,
       toolExecutionEnvironment: this.toolExecutionEnvironment,
+      distributedAgent: this.distributedAgent,
       sessionTitle: this.sessionTitle,
     };
   }

@@ -22,9 +22,59 @@ import json
 import textwrap
 import shutil
 import pathlib
+import subprocess
 
 # Import the necessary function from the agentignore_rules module
 from agentignore_rules import evaluate_path # Assuming momoa_client is package root
+
+def get_local_gcloud_token():
+    """Runs gcloud auth print-access-token locally to grab a fresh GCP token."""
+    try:
+        result = subprocess.run(
+            ['gcloud', 'auth', 'print-access-token'],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        return result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        print(f"Error executing gcloud locally: {e.stderr.strip()}", file=sys.stderr)
+        return None
+    except Exception as e:
+        print(f"Unexpected error generating local gcloud token: {e}", file=sys.stderr)
+        return None
+
+def get_local_gcloud_identity_token(audience):
+    """Runs gcloud auth print-identity-token locally targeting the Cloud Run audience."""
+    try:
+        # Try with the audience flag first (works perfectly for Service Accounts)
+        result = subprocess.run(
+            ['gcloud', 'auth', 'print-identity-token', f'--audiences={audience}'],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        return result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        error_output = e.stderr.strip()
+        
+        # If it's a standard user account, fallback to generating the token without the audience flag
+        if "Requires valid service account" in error_output:
+            try:
+                fallback_result = subprocess.run(
+                    ['gcloud', 'auth', 'print-identity-token'],
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+                return fallback_result.stdout.strip()
+            except subprocess.CalledProcessError as fallback_error:
+                print(f"Error executing gcloud identity lookup (fallback) locally: {fallback_error.stderr.strip()}", file=sys.stderr)
+                return None
+        else:
+            # Print any other errors that weren't related to the account type
+            print(f"Error executing gcloud identity lookup locally: {error_output}", file=sys.stderr)
+            return None
 
 # Variable to store the number of lines the wrapped question takes
 question_lines_count = None
@@ -548,6 +598,56 @@ def main():
         default='developer',
         help='Agent mode (e.g., developer, analyzer)'
     )
+    parser.add_argument(
+        '--cloud-run-proxy-url', 
+        type=str, 
+        help='URL of the Cloud Run Agent Proxy service'
+    )
+
+    parser.add_argument(
+        '--toolenvironment',
+        type=str,
+        default='LOCAL',
+        choices=[
+            'LOCAL', 
+            'CLOUDRUN', 
+            'CLOUDSHELLEDITOR', 
+            'CLOUDWORKSTATION', 
+            'E2B', 
+            'INVERSE_SSH_TUNNEL', 
+            'REMOTE_DESKTOP_AGENT',
+            'JULES'
+        ],
+        help='Agent tool execution environment (default: %(default)s)'
+    )
+
+    parser.add_argument('--e2b-api-key', type=str, help='API key for the E2B sandbox environment')
+    parser.add_argument('--gcp-project-id', type=str, help='Google Cloud Project ID')
+    parser.add_argument('--cloud-workstation-name', type=str, help='Cloud Workstation Name')
+
+    parser.add_argument(
+        '--gcp-token', 
+        type=str, 
+        help='Google Cloud Access Token, or pass "AUTO" to fetch one locally via gcloud CLI'
+    )
+
+    parser.add_argument(
+        '--cloud-run-token', 
+        type=str, 
+        help='Cloud Run OIDC Identity Token, or pass "AUTO" to fetch one locally'
+    )
+
+    parser.add_argument('--ssh-tunnel', type=str, help='SSH Tunnel URL (e.g., tcp://...)')
+    parser.add_argument('--gemini-api-key', type=str, help='Gemini API Key')
+    parser.add_argument('--jules-api-key', type=str, help='Jules API Key')
+    parser.add_argument('--github-token', type=str, help='GitHub Personal Access Token')
+    parser.add_argument('--stitch-api-key', type=str, help='Stitch API Key')
+    parser.add_argument('--github-scratchpad-repo', type=str, help='GitHub Scratchpad Repository URL or Name')
+    parser.add_argument('--remote-desktop-key', type=str, help='Remote Desktop Agent API Key')
+
+    parser.add_argument('--local-docker-image', type=str, help='Custom Docker image to use for the Local Agent Environment (e.g., python:3.11)')
+    parser.add_argument('--docker-mounts', nargs='+', help='Docker volume mounts (e.g., /local/dir:/container/dir)')
+    parser.add_argument('--docker-network', type=str, help='Docker network mode (e.g., host, bridge)')
 
     # Add positional argument for prompt
     parser.add_argument(
@@ -837,6 +937,41 @@ def main():
     # MODIFIED: on_open now only sends parameters
     def on_open(ws):
         global client_state, prompt_text, all_files_data, assumptions_content # Load globals
+
+        # Check if the user requested auto-generation on the client side
+        gcp_token = args.gcp_token
+        if gcp_token == "AUTO":
+            print("AUTO token selected. Fetching access token via local gcloud CLI...", file=sys.stderr)
+            gcp_token = get_local_gcloud_token()
+            if not gcp_token:
+                print("CRITICAL: Local gcloud token retrieval failed. Proceeding without token.", file=sys.stderr)
+
+        # Resolve the Cloud Run token dynamically if requested
+        cloud_run_token = args.cloud_run_token
+        if cloud_run_token == "AUTO" and args.cloud_run_proxy_url:
+            print("AUTO OIDC token selected. Fetching target identity token...", file=sys.stderr)
+            cloud_run_token = get_local_gcloud_identity_token(args.cloud_run_proxy_url)
+
+        # Gather CLI secrets and filter out None values
+        cli_secrets = {
+            "geminiApiKey": args.gemini_api_key,
+            "julesApiKey": args.jules_api_key,
+            "githubToken": args.github_token,
+            "stitchApiKey": args.stitch_api_key,
+            "e2BApiKey": args.e2b_api_key,
+            "githubScratchPadRepo": args.github_scratchpad_repo,
+            "gcpProjectId": args.gcp_project_id,
+            "cloudWorkstationName": args.cloud_workstation_name,
+            "googleAccessToken": gcp_token,
+            "sshTunnelUrl": args.ssh_tunnel,
+            "remoteDesktopKey": args.remote_desktop_key,
+            "cloudRunProxyUrl": args.cloud_run_proxy_url,
+            "cloudRunToken": cloud_run_token,
+            "localdockerImage": args.local_docker_image,
+            "dockerMounts": args.docker_mounts,
+            "dockerNetwork": args.docker_network
+        }
+        cli_secrets = {k: v for k, v in cli_secrets.items() if v is not None}
         
         # Construct the initial request payload *without files*
         initial_request_params = {
@@ -852,6 +987,8 @@ def main():
             "environmentInstructions" : args.env,
             "saveFiles": not args.no_save,
             "mode": args.mode,
+            "toolExecutionEnvironment": args.toolenvironment,
+            "secrets": cli_secrets
         }
 
         # Construct the full message payload wrapper
